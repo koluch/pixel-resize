@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        html, body, div, span, applet, object, iframe,
+        h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+        a, abbr, acronym, address, big, cite, code,
+        del, dfn, em, img, ins, kbd, q, s, samp,
+        small, strike, strong, sub, sup, tt, var,
+        b, u, i, center,
+        dl, dt, dd, ol, ul, li,
+        fieldset, form, label, legend,
+        table, caption, tbody, tfoot, thead, tr, th, td,
+        article, aside, canvas, details, embed,
+        figure, figcaption, footer, header, hgroup,
+        menu, nav, output, ruby, section, summary,
+        time, mark, audio, video {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+        /* HTML5 display-role reset for older browsers */
+        article, aside, details, figcaption, figure,
+        footer, header, hgroup, menu, nav, section {
+            display: block;
+        }
+        body {
+            line-height: 1;
+        }
+        ol, ul {
+            list-style: none;
+        }
+        blockquote, q {
+            quotes: none;
+        }
+        blockquote:before, blockquote:after,
+        q:before, q:after {
+            content: '';
+            content: none;
+        }
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+
+        /**************************/
+
+        html {
+            font-size: 16px;
+        }
+
+        html, * {
+            font-family:  monospace;
+            text-transform: uppercase;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            min-width: 100vh;
+        }
+
+        .content {
+            margin-top: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin: 1rem;
+        }
+
+        h2 {
+            margin: 1.5rem 0 1rem 0;
+            font-weight: bold;
+        }
+
+        #file {
+            display: none;
+        }
+
+        #dropzone {
+            width: 300px;
+            height: 200px;
+            border: 4px dotted black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            background: url('transp.png');
+        }
+
+        #dropzone.dragover {
+            border-color: blue;
+        }
+
+
+        #after-container {
+            width: 300px;
+            height: 200px;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: url('transp.png');
+        }
+
+        button {
+            border: 1px solid #dadada;
+            background: white;
+            padding: 0.5rem 0.75rem;
+            margin: 1rem;
+            font-size: 1rem;
+        }
+
+        body.empty #dropzone::before {
+            content: 'Drop you image here'
+        }
+
+
+        body.empty #downloadPngButton {
+            display: none;
+        }
+
+        #waitMsg {
+            display: none;
+        }
+
+        body.wait #waitMsg {
+            display: block;
+        }
+
+        #scaleRatio {
+            display: flex;
+            align-items: center;
+        }
+        #scaleRatio > * {
+            margin-right: 0.5rem;
+        }
+
+    </style>
+</head>
+<body class="empty">
+    <div class="content">
+        <h1>Pixel images resizer</h1>
+        <h2>Before</h2>
+        <div id="dropzone">
+            <img id="before"/>
+        </div>
+        <input type="file" id="file"/>
+        <button id="uploadButton">Upload</button>
+        <label id="scaleRatio">
+            <span>Scale ratio:</span>
+            <input id="scaleRatioInput" type="range" min="1" max="16" step="1" value="2" />
+            <span id="scaleRatioLabel">2</span>
+        </label>
+        <h2>After</h2>
+        <div id="after-container">
+            <canvas id="after"></canvas>
+        </div>
+        <button id="downloadPngButton">Download PNG</button>
+        <h2 id="waitMsg">Resizing. Please, wait...</h2>
+    </div>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropzoneEl = document.getElementById('dropzone')
+            const fileEl = document.getElementById('file')
+            const beforeEl = document.getElementById('before')
+            const afterEl = document.getElementById('after')
+            const uploadButtonEl = document.getElementById('uploadButton')
+            const downloadPngButtonEl = document.getElementById('downloadPngButton')
+            const scaleRatioInputEl = document.getElementById('scaleRatioInput')
+            const scaleRatioLabelEl = document.getElementById('scaleRatioLabel')
+
+            let currentFile = null
+
+            // Change scale ratio logic
+            scaleRatioInputEl.addEventListener('change', (e) => {
+                scaleRatioLabelEl.textContent = e.target.value
+                resize()
+            })
+
+            // DnD logic
+            dropzoneEl.addEventListener('dragenter', (e) => { dropzoneEl.classList.add('dragover') })
+            dropzoneEl.addEventListener('dragleave', (e) => { dropzoneEl.classList.remove('dragover') })
+            dropzoneEl.addEventListener('dragover', (e) => {  e.preventDefault()})
+            dropzoneEl.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzoneEl.classList.remove('dragover');
+
+                //todo: check length
+                const file = e.dataTransfer.files[0]
+                if (checkFileType(file)) {
+                    currentFile = file
+                    resize()
+                }
+                else {
+                    //todo: show alert about bad file type
+                }
+            })
+
+            // Upload button logic
+            uploadButtonEl.addEventListener('click', () => {
+                fileEl.value = ''
+                fileEl.click()
+            })
+            fileEl.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (checkFileType(file)) {
+                    currentFile = file
+                    resize()
+                }
+                else {
+                    //todo: show alert about bad file type
+                }
+            })
+
+            // Download button logic
+            downloadPngButtonEl.addEventListener('click', () => {
+                const elem = window.document.createElement('a')
+                elem.href = afterEl.toDataURL('image/png')
+                elem.download = 'resized.png'
+                document.body.appendChild(elem)
+                elem.click()
+                document.body.removeChild(elem)
+            })
+
+            function checkFileType(file) {
+                return file.type === 'image/png'
+                    || file.type === 'image/jpeg'
+                    || file.type === 'image/vnd.microsoft.icon'
+            }
+
+            function resize() {
+                if (currentFile !== null) {
+                    document.body.classList.remove('empty')
+                    document.body.classList.add('wait')
+                    setTimeout(() => {
+                        beforeEl.src = window.URL.createObjectURL(currentFile)
+                        const reader = new FileReader();
+                        reader.addEventListener("load", function () {
+                            const img = new Image();
+                            img.onload = () => {
+                                const imageCanvas = document.createElement('canvas')
+                                imageCanvas.width = img.width
+                                imageCanvas.height = img.height
+                                const imageCtx = imageCanvas.getContext('2d');
+                                imageCtx.drawImage(img, 0, 0)
+                                const imageData = imageCtx.getImageData(0,0, img.width, img.height).data;
+
+                                const canvas = afterEl;
+                                const SCALE = parseInt(scaleRatioInputEl.value);
+                                canvas.width = img.width * SCALE
+                                canvas.height = img.height * SCALE
+
+                                const ctx = canvas.getContext('2d');
+                                for(let i = 0; i < imageData.length; i+=4) {
+                                    const pixel = i / 4
+
+                                    const x = pixel % img.width
+                                    const y = Math.floor(pixel / img.width)
+
+                                    const red = imageData[i]
+                                    const green = imageData[i + 1]
+                                    const blue = imageData[i + 2]
+                                    const alpha = imageData[i + 3]
+
+                                    ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha})`
+                                    ctx.fillRect(x * SCALE, y * SCALE, SCALE, SCALE)
+                                }
+                                document.body.classList.remove('wait')
+                            }
+                            img.src = reader.result
+                        });
+                        reader.readAsDataURL(currentFile);
+                    }, 0)
+                }
+                else {
+                    document.body.classList.add('empty')
+                }
+            }
+
+
+        })
+    </script>
+</body>
+</html>
